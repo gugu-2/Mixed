@@ -1,0 +1,401 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muslim Population by Country - World Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <style>
+        #map { height: 500px; }
+        .info { padding: 6px 8px; font: 14px/16px Arial, sans-serif; background: white; border-radius: 5px; }
+        .legend { line-height: 18px; color: #555; }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-2xl font-bold text-center mb-4">Muslim Population by Country (2022-2025 Estimates)</h1>
+        <div id="map" class="w-full mb-4"></div>
+        <div class="bg-white p-4 rounded shadow">
+            <h2 class="text-xl font-semibold mb-2">Top 10 Countries by Muslim Population</h2>
+            <canvas id="populationChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([0, 0], 2);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Muslim population data (2022-2025 estimates from Statista, Pew Research, World Population Review)
+        const muslimPopulation = {
+            "Indonesia": 241500000,
+            "Pakistan": 225600000,
+            "India": 211160000,
+            "Bangladesh": 153700000,
+            "Nigeria": 99000000,
+            "Egypt": 87500000,
+            "Iran": 82500000,
+            "Turkey": 79900000,
+            "Algeria": 42000000,
+            "Sudan": 40400000,
+            "Iraq": 39100000,
+            "Afghanistan": 37000000,
+            "Morocco": 36000000,
+            "Ethiopia": 34000000,
+            "Saudi Arabia": 33300000,
+            "Yemen": 30000000,
+            "China": 28000000,
+            "Syria": 20000000,
+            "Malaysia": 19600000,
+            "Uzbekistan": 18000000,
+            "Niger": 17000000,
+            "Mali": 15000000,
+            "Somalia": 14000000,
+            "Senegal": 13000000,
+            "Tunisia": 11600000,
+            "Kazakhstan": 11000000,
+            "Burkina Faso": 10000000,
+            "Chad": 9000000,
+            "Jordan": 9000000,
+            "United Arab Emirates": 4600000,
+            "Libya": 4300000,
+            "Tajikistan": 4300000,
+            "Azerbaijan": 4000000,
+            "Guinea": 4000000,
+            "Kyrgyzstan": 3500000,
+            "United Kingdom": 3500000,
+            "United States": 3500000,
+            "Lebanon": 3400000,
+            "Russia": 3000000,
+            "France": 5700000,
+            "Germany": 5000000,
+            "Mauritania": 3000000,
+            "Oman": 3000000,
+            "Qatar": 1600000,
+            "Kuwait": 1500000,
+            "Bahrain": 1200000,
+            "Maldives": 1000000,
+            "Brunei": 400000,
+            "Gaza Strip": 2000000,
+            "West Bank": 2400000,
+            "Albania": 1800000,
+            "Bosnia and Herzegovina": 1600000,
+            "Kosovo": 1500000,
+            "North Macedonia": 600000,
+            "Djibouti": 900000,
+            "Comoros": 800000,
+            "Mayotte": 250000,
+            "Western Sahara": 600000,
+            "Eritrea": 1800000,
+            "Tanzania": 20950000,
+            "Benin": 3500000,
+            "Cameroon": 6000000,
+            "Ghana": 5000000,
+            "Ivory Coast": 5000000,
+            "Kenya": 4000000,
+            "Uganda": 4000000,
+            "Philippines": 6000000,
+            "Thailand": 4000000,
+            "Myanmar": 2000000,
+            "South Africa": 1000000,
+            "Spain": 2000000,
+            "Italy": 1500000,
+            "Netherlands": 1000000,
+            "Belgium": 870000,
+            "Sweden": 800000,
+            "Austria": 700000,
+            "Switzerland": 400000,
+            "Canada": 1000000,
+            "Australia": 600000,
+            "Israel": 1600000,
+            "Nepal": 1000000,
+            "Sri Lanka": 2000000,
+            "Malawi": 2000000,
+            "Sierra Leone": 3000000,
+            "Gambia": 2000000,
+            "Guinea-Bissau": 900000,
+            "Liberia": 600000,
+            "Mauritius": 200000,
+            "Singapore": 700000,
+            "Fiji": 60000,
+            "Japan": 200000,
+            "South Korea": 100000,
+            "Brazil": 200000,
+            "Argentina": 100000,
+            "Mexico": 100000,
+            "Chile": 50000,
+            "Colombia": 50000,
+            "Peru": 50000,
+            "Venezuela": 100000,
+            "New Zealand": 50000,
+            "Norway": 200000,
+            "Denmark": 200000,
+            "Finland": 100000,
+            "Ireland": 70000,
+            "Portugal": 50000,
+            "Greece": 600000,
+            "Cyprus": 200000,
+            "Malta": 10000,
+            "Luxembourg": 20000,
+            "Iceland": 1000,
+            "Monaco": 1000,
+            "Andorra": 1000,
+            "Liechtenstein": 1000,
+            "San Marino": 1000,
+            "Vatican City": 0,
+            "Bahamas": 2000,
+            "Barbados": 2000,
+            "Belize": 1000,
+            "Dominica": 1000,
+            "Grenada": 1000,
+            "Saint Kitts and Nevis": 1000,
+            "Saint Lucia": 1000,
+            "Saint Vincent and the Grenadines": 1000,
+            "Trinidad and Tobago": 70000,
+            "Jamaica": 5000,
+            "Cuba": 10000,
+            "Haiti": 2000,
+            "Dominican Republic": 2000,
+            "Costa Rica": 2000,
+            "El Salvador": 2000,
+            "Guatemala": 2000,
+            "Honduras": 2000,
+            "Nicaragua": 2000,
+            "Panama": 2000,
+            "Bolivia": 2000,
+            "Ecuador": 2000,
+            "Paraguay": 1000,
+            "Uruguay": 1000,
+            "Guyana": 50000,
+            "Suriname": 70000,
+            "Timor-Leste": 1000,
+            "North Korea": 1000,
+            "Vietnam": 200000,
+            "Laos": 1000,
+            "Cambodia": 200000,
+            "Mongolia": 1000,
+            "Bhutan": 1000,
+            "Taiwan": 60000,
+            "Zambia": 100000,
+            "Zimbabwe": 100000,
+            "Botswana": 1000,
+            "Namibia": 1000,
+            "Eswatini": 1000,
+            "Lesotho": 1000,
+            "Angola": 100000,
+            "Mozambique": 5000000,
+            "Madagascar": 100000,
+            "Rwanda": 200000,
+            "Burundi": 100000,
+            "South Sudan": 1000000,
+            "Central African Republic": 400000,
+            "Congo": 100000,
+            "Democratic Republic of the Congo": 1000000,
+            "Gabon": 200000,
+            "Equatorial Guinea": 100000,
+            "Togo": 1000000,
+            "Armenia": 1000,
+            "Georgia": 400000,
+            "Serbia": 200000,
+            "Montenegro": 100000,
+            "Croatia": 50000,
+            "Slovenia": 50000,
+            "Estonia": 2000,
+            "Latvia": 2000,
+            "Lithuania": 2000,
+            "Belarus": 20000,
+            "Ukraine": 500000,
+            "Moldova": 2000,
+            "Romania": 70000,
+            "Bulgaria": 1000000,
+            "Hungary": 5000,
+            "Slovakia": 5000,
+            "Czech Republic": 2000,
+            "Poland": 5000
+        };
+
+        // Function to get color based on population
+        function getColor(population) {
+            return population > 100000000 ? '#800026' :
+                   population > 50000000  ? '#BD0026' :
+                   population > 10000000  ? '#E31A1C' :
+                   population > 1000000   ? '#FC4E2A' :
+                   population > 0         ? '#FD8D3C' :
+                                            '#FFEDA0';
+        }
+
+        // Style for each country
+        function style(feature) {
+            const countryName = feature.properties.name;
+            const population = muslimPopulation[countryName] || 0;
+            return {
+                fillColor: getColor(population),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 0.7
+            };
+        }
+
+        // Highlight feature on hover
+        function highlightFeature(e) {
+            const layer = e.target;
+            layer.setStyle({
+                weight: 5,
+                color: '#666',
+                dashArray: '',
+                fillOpacity: 0.7
+            });
+            layer.bringToFront();
+            info.update(layer.feature.properties);
+        }
+
+        // Reset highlight
+        function resetHighlight(e) {
+            geojson.resetStyle(e.target);
+            info.update();
+        }
+
+        // Zoom to feature on click
+        function zoomToFeature(e) {
+            map.fitBounds(e.target.getBounds());
+        }
+
+        // Add interaction
+        function onEachFeature(feature, layer) {
+            layer.on({
+                mouseover: highlightFeature,
+                mouseout: resetHighlight,
+                click: zoomToFeature
+            });
+        }
+
+        // Info control
+        const info = L.control();
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        info.update = function (props) {
+            this._div.innerHTML = '<h4>Muslim Population</h4>' + (props ?
+                '<b>' + props.name + '</b><br />' + (muslimPopulation[props.name] ? muslimPopulation[props.name].toLocaleString() + ' Muslims' : 'Data not available')
+                : 'Hover over a country');
+        };
+        info.addTo(map);
+
+        // Legend control
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function (map) {
+            const div = L.DomUtil.create('div', 'info legend');
+            const grades = [0, 1000000, 10000000, 50000000, 100000000];
+            const labels = [];
+            for (let i = 0; i < grades.length; i++) {
+                div.innerHTML +=
+                    '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+                    grades[i].toLocaleString() + (grades[i + 1] ? '–' + grades[i + 1].toLocaleString() + '<br>' : '+');
+            }
+            return div;
+        };
+        legend.addTo(map);
+
+        // Load GeoJSON (using CDN-hosted world GeoJSON)
+        fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson')
+            .then(response => response.json())
+            .then(data => {
+                geojson = L.geoJson(data, {
+                    style: style,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+            });
+
+        // Chart.js Bar Chart for Top 10 Countries
+        const ctx = document.getElementById('populationChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Indonesia', 'Pakistan', 'India', 'Bangladesh', 'Nigeria', 'Egypt', 'Iran', 'Turkey', 'Algeria', 'Sudan'],
+                datasets: [{
+                    label: 'Muslim Population (Millions)',
+                    data: [241.5, 225.6, 211.16, 153.7, 99, 87.5, 82.5, 79.9, 42, 40.4],
+                    backgroundColor: '#4CAF50',
+                    borderColor: '#388E3C',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Population (Millions)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: true,
+                        text: 'Top 10 Countries by Muslim Population (2022-2025)'
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
